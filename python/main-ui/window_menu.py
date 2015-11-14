@@ -63,14 +63,14 @@ class MenuWindow(xbmcgui.WindowXML):
         self.first_time = True
                    
         self.control_list = self.getControl(100)
-
+        
         if len(self.itemlist)>0:
             item = self.itemlist[0]
             if item.thumbnail!="" and not "thumb_error" in item.thumbnail and not "thumb_folder" in item.thumbnail and not "thumb_nofolder" in item.thumbnail:
                 self.getControl(301).setImage(item.thumbnail)
                 self.getControl(302).setText(item.title)
                 self.getControl(303).setText(item.plot)
-
+        self.itemlist.insert(0,Item(title="Atrás", action="go_back",thumbnail=os.path.join(plugintools.get_runtime_path(), 'resources', "images","thumb_atras_icon.png")))
         for item in self.itemlist:
 
             list_item = xbmcgui.ListItem( item.title , iconImage=item.thumbnail, thumbnailImage=item.thumbnail)
@@ -85,6 +85,29 @@ class MenuWindow(xbmcgui.WindowXML):
 
         self.getControl(300).setLabel(self.parent_item.channel)
         self.setFocusId(100)
+        
+    def NextItem(self):
+
+      loader_image = os.path.join( plugintools.get_runtime_path(), 'resources', 'skins', 'Default', 'media', 'loader.gif')
+      loader = xbmcgui.ControlImage(1200, 19, 40, 40, loader_image)
+      self.addControl(loader)
+
+      pos = self.control_list.getSelectedPosition()
+      item = self.itemlist[pos]
+      if item.action == "go_back":
+        self.close()
+      else:
+        next_items = navigation.get_next_items( item )
+        loader.setVisible(False)
+
+        # Si no hay nada, no muestra la pantalla vacía
+        if len(next_items)>0:
+            next_window = navigation.get_window_for_item( item )
+            next_window.setItemlist(next_items)
+            next_window.setParentItem(item)
+
+            next_window.doModal()
+            del next_window
 
     def onAction(self, action):
         plugintools.log("MenuWindow.onAction action.id="+repr(action.getId())+" action.buttonCode="+repr(action.getButtonCode()))
@@ -100,26 +123,7 @@ class MenuWindow(xbmcgui.WindowXML):
             self.close()
 
         if action == ACTION_SELECT_ITEM:
-
-            loader_image = os.path.join( plugintools.get_runtime_path(), 'resources', 'skins', 'Default', 'media', 'loader.gif')
-            loader = xbmcgui.ControlImage(1200, 19, 40, 40, loader_image)
-            self.addControl(loader)
-
-            pos = self.control_list.getSelectedPosition()
-            item = self.itemlist[pos]
-
-            next_items = navigation.get_next_items( item )
-            loader.setVisible(False)
-
-            # Si no hay nada, no muestra la pantalla vacía
-            if len(next_items)>0:
-                next_window = navigation.get_window_for_item( item )
-                next_window.setItemlist(next_items)
-                next_window.setParentItem(item)
-
-                next_window.doModal()
-                del next_window
-
+          self.NextItem()
     def on_playback_stopped( self ):
         plugintools.log("DetailWindow.on_playback_stopped currentTime="+str(self.custom_player.get_current_time())+", totalTime="+str(self.custom_player.get_total_time()))
         plugintools.log("DetailWindow.on_playback_stopped parent_item="+self.parent_item.tostring())
@@ -130,7 +134,7 @@ class MenuWindow(xbmcgui.WindowXML):
 
     def onClick( self, control_id ):
         plugintools.log("MenuWindow.onClick "+repr(control_id))
-        pass
+        self.NextItem()
 
     def onControl(self, control):
         plugintools.log("MenuWindow.onClick "+repr(control))
