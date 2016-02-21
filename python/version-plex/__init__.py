@@ -132,7 +132,7 @@ def canal(channel_name="",action="",caller_item_serialized=None):
         Log.Info("caller_item="+str(caller_item))
 
         Log.Info("Importando...")
-        from servers import servertools
+        from core import servertools
         channelmodule = servertools.get_channel_module(channel_name)
         Log.Info("Importado")
 
@@ -197,7 +197,7 @@ def resuelve(url):
     return Redirect(url)
 
 def play_video(item):
-    from servers import servertools
+    from core import servertools
     video_urls = servertools.get_video_urls(item.server,item.url)
     itemlist = []
     for video_url in video_urls:
@@ -206,7 +206,7 @@ def play_video(item):
     return itemlist
 
 def findvideos(item):
-    from servers import servertools
+    from core import servertools
     return servertools.find_video_items(item=item, channel=item.channel)
 
 #return MessageContainer("Empty", "There aren't any speakers whose name starts with " + char)

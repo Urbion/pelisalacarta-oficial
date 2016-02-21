@@ -119,7 +119,7 @@ def get_next_items( item ):
                     itemlist = []
 
                 if len(itemlist)==0:
-                    from servers import servertools
+                    from core import servertools
                     itemlist = servertools.find_video_items(item)
 
                 if len(itemlist)==0:

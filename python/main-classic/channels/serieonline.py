@@ -11,7 +11,7 @@ from core import logger
 from core import config
 from core import scrapertools
 from core.item import Item
-from servers import servertools
+from core import servertools
 
 __channel__ = "serieonline"
 __category__ = "F,S,D"
@@ -300,7 +300,7 @@ def play(item):
     print("play"+item.server)
     data = scrapertools.cachePage(item.url)
     
-    from servers import servertools
+    from core import servertools
     itemlist = servertools.find_video_items(data=data)
     for videoitem in itemlist:
         videoitem.channel = item.channel
@@ -310,7 +310,7 @@ def play(item):
 
 # Verificación automática de canales: Esta función debe devolver "True" si está ok el canal.
 def test():
-    from servers import servertools
+    from core import servertools
     
     # mainlist
     mainlist_items = mainlist(Item())

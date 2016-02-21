@@ -10,7 +10,7 @@ from core import logger
 from core import config
 from core import scrapertools
 from core.item import Item
-from servers import servertools
+from core import servertools
 
 __channel__ = "tumejortv"
 __category__ = "F,S"
@@ -262,7 +262,7 @@ def findvideos(item):
     data = scrapertools.cache_page(item.url)
     itemlist=[]
     '''
-    from servers import servertools
+    from core import servertools
     itemlist = servertools.find_video_items(data=data)
     for videoitem in itemlist:
         videoitem.channel=__channel__
@@ -426,7 +426,7 @@ def findvideos_partes(item):
 def play(item):
     logger.info("pelisalacarta.channels.tumejortv play")
 
-    from servers import servertools
+    from core import servertools
     itemlist = servertools.find_video_items(data=item.url)
     for videoitem in itemlist:
         videoitem.channel=__channel__
@@ -436,7 +436,7 @@ def play(item):
     return itemlist
 
 def test():
-    from servers import servertools
+    from core import servertools
     
     # mainlist
     mainlist_items = mainlist(Item())

@@ -13,7 +13,7 @@ config.set_setting("debug","true")
 from core import scrapertools
 from core import downloadtools
 from core.item import Item
-from servers import servertools
+from core import servertools
 
 def download_url(url,titulo,server):
 
