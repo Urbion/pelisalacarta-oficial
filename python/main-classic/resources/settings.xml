@@ -15,7 +15,7 @@
     <setting type="sep" />
     <setting label="Actualizaciones" type="lsep" />
     <setting id="updatecheck2" type="bool" label="30001" default="true"/>
-    <setting id="updatechannels" type="bool" label="30004" default="true"/>
+    <setting id="updatechannels" type="enum" values="Nunca|Al iniciar|Preguntar|Manual" label="30004" default="1"/>
     <setting id="updatelibrary" type="bool" label="30201" default="true"/>
   </category>
   

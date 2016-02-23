@@ -1,354 +1,376 @@
-﻿# -*- coding: utf-8 -*-
-#------------------------------------------------------------
-# pelisalacarta
-# http://blog.tvalacarta.info/plugin-xbmc/pelisalacarta
-# XBMC Plugin
-#------------------------------------------------------------
-
-import urlparse,urllib2,urllib,re
+# -*- coding: utf-8 -*-
+#----------------------------------------------------------------------
+# pelisalacarta - XBMC Plugin
+# Updater
+# http://blog.tvalacarta.info/plugin-xbmc/pelisalacarta/
+#----------------------------------------------------------------------
 import os
-import sys
-import scrapertools
+import json
 import time
-import config
-import logger
+import re
+from core import scrapertools
+from core import config
+from core import logger
+from core import xmltools
+from core.item import Item
+from platformcode import platformtools
 
-# FIXME: Esto está repetido en el channelselector, debería ir a config
-thumbnail_type = config.get_setting("thumbnail_type")
-if thumbnail_type=="":
-    thumbnail_type="2"
-logger.info("thumbnail_type="+thumbnail_type)
-if thumbnail_type=="0":
-    IMAGES_PATH = 'http://media.tvalacarta.info/pelisalacarta/posters/'
-elif thumbnail_type=="1":
-    IMAGES_PATH = 'http://media.tvalacarta.info/pelisalacarta/banners/'
-elif thumbnail_type=="2":
-    IMAGES_PATH = 'http://media.tvalacarta.info/pelisalacarta/squares/'
+__channel__ = "updater"
 
-ROOT_DIR = config.get_runtime_path()
+headers = [["User-Agent", "pelisalacarta"]] 
+repo = "divadres/pelisalacarta-oficial"
+branch = "feature/servers"
+GitApi = "https://api.github.com/repos/"+repo+"/contents/python/main-classic/%s?ref="+branch
+DownloadUrl = "https://raw.githubusercontent.com/"+repo+"/"+branch+"/python/main-classic/"
 
-REMOTE_VERSION_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-version.xml"
-LOCAL_VERSION_FILE = os.path.join( ROOT_DIR , "version.xml" )
-LOCAL_FILE = os.path.join( ROOT_DIR , config.PLUGIN_NAME+"-" )
-
-try:
-    # Añadida a la opcion : si plataforma xbmcdharma es "True", no debe ser con la plataforma de la xbox
-    # porque seria un falso "True", ya que el xbmc en las xbox no son dharma por lo tanto no existen los addons
-    logger.info("pelisalacarta.core.updater get_platform="+config.get_platform())
-    logger.info("pelisalacarta.core.updater get_system_platform="+config.get_system_platform())
-    if config.get_platform()=="kodi-jarvis":
-        import xbmc
-        REMOTE_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-kodi-jarvis-"
-        DESTINATION_FOLDER = xbmc.translatePath( "special://home/addons")
-    elif config.get_platform()=="kodi-isengard":
-        import xbmc
-        REMOTE_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-kodi-isengard-"
-        DESTINATION_FOLDER = xbmc.translatePath( "special://home/addons")
-    elif config.get_platform()=="kodi-helix":
-        import xbmc
-        REMOTE_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-kodi-helix-"
-        DESTINATION_FOLDER = xbmc.translatePath( "special://home/addons")
-    elif config.get_platform()=="xbmc-eden":
-        import xbmc
-        REMOTE_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-xbmc-eden-"
-        DESTINATION_FOLDER = xbmc.translatePath( "special://home/addons")
-    elif config.get_platform()=="xbmc-frodo":
-        import xbmc
-        REMOTE_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-xbmc-frodo-"
-        DESTINATION_FOLDER = xbmc.translatePath( "special://home/addons")
-    elif config.get_platform()=="xbmc-gotham":
-        import xbmc
-        REMOTE_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-xbmc-gotham-"
-        DESTINATION_FOLDER = xbmc.translatePath( "special://home/addons")
-    elif config.get_platform()=="xbmc":
-        import xbmc
-        REMOTE_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-xbmc-plugin-"
-        DESTINATION_FOLDER = xbmc.translatePath( "special://home/plugins/video")
-    elif config.get_platform()=="wiimc":
-        REMOTE_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-wiimc-"
-        DESTINATION_FOLDER = os.path.join(config.get_runtime_path(),"..")
-    elif config.get_platform()=="rss":
-        REMOTE_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-rss-"
-        DESTINATION_FOLDER = os.path.join(config.get_runtime_path(),"..")
-
-except:
-    import xbmc
-    REMOTE_FILE = "http://descargas.tvalacarta.info/"+config.PLUGIN_NAME+"-xbmc-plugin-"
-    DESTINATION_FOLDER = xbmc.translatePath( os.path.join( ROOT_DIR , ".." ) )
-
-def checkforupdates(plugin_mode=True):
-    logger.info("pelisalacarta.core.updater checkforupdates")
-
-    # Descarga el fichero con la versión en la web
-    logger.info("pelisalacarta.core.updater Verificando actualizaciones...")
-    logger.info("pelisalacarta.core.updater Version remota: "+REMOTE_VERSION_FILE)
-    data = scrapertools.cachePage( REMOTE_VERSION_FILE )
-
-    '''    
-    <?xml version="1.0" encoding="utf-8" standalone="yes"?>
-    <version>
-            <name>pelisalacarta</name>
-            <tag>4.0     </tag>
-            <version>4000</tag>
-            <date>20/03/2015</date>
-            <changes>New release</changes>
-    </version>
-    '''
-
-    version_publicada = scrapertools.find_single_match(data,"<version>([^<]+)</version>").strip()
-    tag_publicada = scrapertools.find_single_match(data,"<tag>([^<]+)</tag>").strip()
-    logger.info("pelisalacarta.core.updater version remota="+tag_publicada+" "+version_publicada)
+def isGeneric():
+    return True
     
-    # Lee el fichero con la versión instalada
-    localFileName = LOCAL_VERSION_FILE
-    logger.info("pelisalacarta.core.updater fichero local version: "+localFileName)
-    infile = open( localFileName )
-    data = infile.read()
-    infile.close();
-    #logger.info("xml local="+data)
-
-    version_local = scrapertools.find_single_match(data,"<version>([^<]+)</version>").strip()
-    tag_local = scrapertools.find_single_match(data,"<tag>([^<]+)</tag>").strip()
-    logger.info("pelisalacarta.core.updater version local="+tag_local+" "+version_local)
-
-    try:
-        numero_version_publicada = int(version_publicada)
-        numero_version_local = int(version_local)
-    except:
-        import traceback
-        logger.info(traceback.format_exc())
-        version_publicada = ""
-        version_local = ""
-
-    if version_publicada=="" or version_local=="":
-        arraydescargada = tag_publicada.split(".")
-        arraylocal = tag_local.split(".")
-
-        # local 2.8.0 - descargada 2.8.0 -> no descargar
-        # local 2.9.0 - descargada 2.8.0 -> no descargar
-        # local 2.8.0 - descargada 2.9.0 -> descargar
-        if len(arraylocal) == len(arraydescargada):
-            logger.info("caso 1")
-            hayqueactualizar = False
-            for i in range(0, len(arraylocal)):
-                print arraylocal[i], arraydescargada[i], int(arraydescargada[i]) > int(arraylocal[i])
-                if int(arraydescargada[i]) > int(arraylocal[i]):
-                    hayqueactualizar = True
-        # local 2.8.0 - descargada 2.8 -> no descargar
-        # local 2.9.0 - descargada 2.8 -> no descargar
-        # local 2.8.0 - descargada 2.9 -> descargar
-        if len(arraylocal) > len(arraydescargada):
-            logger.info("caso 2")
-            hayqueactualizar = False
-            for i in range(0, len(arraydescargada)):
-                #print arraylocal[i], arraydescargada[i], int(arraydescargada[i]) > int(arraylocal[i])
-                if int(arraydescargada[i]) > int(arraylocal[i]):
-                    hayqueactualizar = True
-        # local 2.8 - descargada 2.8.8 -> descargar
-        # local 2.9 - descargada 2.8.8 -> no descargar
-        # local 2.10 - descargada 2.9.9 -> no descargar
-        # local 2.5 - descargada 3.0.0
-        if len(arraylocal) < len(arraydescargada):
-            logger.info("caso 3")
-            hayqueactualizar = True
-            for i in range(0, len(arraylocal)):
-                #print arraylocal[i], arraydescargada[i], int(arraylocal[i])>int(arraydescargada[i])
-                if int(arraylocal[i]) > int(arraydescargada[i]):
-                    hayqueactualizar =  False
-                elif int(arraylocal[i]) < int(arraydescargada[i]):
-                    hayqueactualizar =  True
-                    break
+def mainlist(item):
+    itemlist = []
+    itemlist.append(Item(action="refresh",title="Buscar actualizaciones...",channel =__channel__ ))
+    updates = get_updates_list()
+    if len(updates) > 0:
+      #progress = platformtools.dialog_progress_bg("Pelisalacarta")   
+      
+      keys = sorted(updates, key = lambda key: (updates[key]["type"], updates[key]["name"]))
+      for sha in keys:
+        #progress.update((keys.index(sha)+1) *100 / len(updates),"Pelisalacarta", "Procesando: " + updates[sha]["name"][:-4] )
+  
+        #update =  get_update(sha)
+        update = updates[sha]
+        title = update["name"][:-4]
+        if update["type"] =="channels":    title += " [C]"
+        if update["type"] =="servers":     title += " [S]" 
+        if update["change"] =="added":    title += " [N]"
+        if update["change"] =="modified": title += " [U]"   
+              
+        itemlist.append(Item(action="download",title=title,channel =__channel__, extra=sha))
+      #progress.close()
+      
+    if len(itemlist)>1:
+      itemlist.insert(1,Item(action="download_all",title="Actualizar todo",channel =__channel__ ))
     else:
-        hayqueactualizar = (numero_version_publicada > numero_version_local)
+      itemlist.append(Item(title="¡No hay actualizaciones!"))
+          
+    return itemlist
 
-    if hayqueactualizar:
-    
-        if plugin_mode:
-    
-            logger.info("pelisalacarta.core.updater actualizacion disponible")
+def refresh(item):
+  check_files(True)
+  platformtools.itemlist_refresh()  
+
+def download_all(item):
+  time.sleep(1)
+  download_all_updates()
+  platformtools.dialog_ok("pelisalacarta","Descarga completada")
+  platformtools.itemlist_refresh()
+  
+  
+def download(item):
+  sha = item.extra
+  update  = get_update(sha)
+  title = "%s v%s | %s" %(update["data"]["name"],update["data"]["version"],update["data"]["date"])
+  info = "Cambios: %s" %(update["data"]["changes"])
+  if platformtools.dialog_yesno(title,info):
+    download_update(update) 
+    platformtools.dialog_ok("pelisalacarta","Descarga completada")
+    platformtools.itemlist_refresh()
+
+
+
+def download_all_updates():
+  progreso = platformtools.dialog_progress("Actualizando","")
+  updates = read_updates()
+  keys = sorted(updates, key = lambda key: updates[key]["name"])
+  cantidad = len(updates)
+  for sha in keys:
+    #update  = get_update(sha) 
+    update = updates[sha]
+    percent = (keys.index(sha)+1) *100 / cantidad
+    if progreso.iscanceled(): 
+      progreso.close()
+      return
+    if update["type"] == "channels":
+      progreso.update(percent,"Descargando canal: " + update["name"][:-4])
+      download_update(update)
+    if update["type"] == "servers":
+      progreso.update(percent,"Descargando servidor: " + update["name"][:-4])
+      download_update(update)
+      
+  progreso.close()
+
+      
+def download_update(update):
+  xml, py = get_file_url(update)
+  xmldata = download_file(xml["url"])
+  pydata = download_file(py["url"])
+  open(xml["path"],"wb").write(xmldata)
+  open(py["path"],"wb").write(pydata)
+  remove_update(update["sha"])
             
-            # Añade al listado de XBMC
-            import xbmcgui
-            thumbnail = IMAGES_PATH+"Crystal_Clear_action_info.png"
-            logger.info("thumbnail="+thumbnail)
-            listitem = xbmcgui.ListItem( "Descargar version "+tag_publicada, thumbnailImage=thumbnail )
-            itemurl = '%s?action=update&version=%s' % ( sys.argv[ 0 ] , tag_publicada )
-            import xbmcplugin
-            xbmcplugin.addDirectoryItem( handle = int(sys.argv[ 1 ]), url = itemurl , listitem=listitem, isFolder=True)
-            
-            # Avisa con un popup
-            dialog = xbmcgui.Dialog()
-            dialog.ok("Versión "+tag_publicada+" disponible","Ya puedes descargar la nueva versión del plugin\ndesde el listado principal")
 
-        else:
 
-            import xbmcgui
-            yes_pressed = xbmcgui.Dialog().yesno( "Versión "+tag_publicada+" disponible" , "¿Quieres instalarla?" )
-
-            if yes_pressed:
-                params = {"version":tag_publicada}
-                update(params)
-
-    '''
-    except:
-        logger.info("No se han podido verificar actualizaciones...")
-        import sys
-        for line in sys.exc_info():
-            logger.error( "%s" % line )
-    '''
-def update(params):
-    # Descarga el ZIP
-    logger.info("pelisalacarta.core.updater update")
-    remotefilename = REMOTE_FILE+params.get("version")+".zip"
-    localfilename = LOCAL_FILE+params.get("version")+".zip"
-    logger.info("pelisalacarta.core.updater remotefilename=%s" % remotefilename)
-    logger.info("pelisalacarta.core.updater localfilename=%s" % localfilename)
-    logger.info("pelisalacarta.core.updater descarga fichero...")
-    inicio = time.clock()
-    
-    #urllib.urlretrieve(remotefilename,localfilename)
-    from core import downloadtools
-    downloadtools.downloadfile(remotefilename, localfilename, continuar=False)
-    
-    fin = time.clock()
-    logger.info("pelisalacarta.core.updater Descargado en %d segundos " % (fin-inicio+1))
-    
-    # Lo descomprime
-    logger.info("pelisalacarta.core.updater descomprime fichero...")
-    import ziptools
-    unzipper = ziptools.ziptools()
-    destpathname = DESTINATION_FOLDER
-    logger.info("pelisalacarta.core.updater destpathname=%s" % destpathname)
-    unzipper.extract(localfilename,destpathname)
-    
-    # Borra el zip descargado
-    logger.info("pelisalacarta.core.updater borra fichero...")
-    os.remove(localfilename)
-    logger.info("pelisalacarta.core.updater ...fichero borrado")
-
-def get_channel_remote_url(channel_name):
-
-    _remote_channel_url_ = "https://raw.githubusercontent.com/tvalacarta/pelisalacarta/master/python/main-classic/"
-
-    if channel_name <> "channelselector":
-        _remote_channel_url_+= "channels/"
-
-    remote_channel_url = _remote_channel_url_+channel_name+".py"
-    remote_version_url = _remote_channel_url_+channel_name+".xml" 
-
-    logger.info("pelisalacarta.core.updater remote_channel_url="+remote_channel_url)
-    logger.info("pelisalacarta.core.updater remote_version_url="+remote_version_url)
-    
-    return remote_channel_url , remote_version_url
-
-def get_channel_local_path(channel_name):
-    # TODO: (3.2) El XML debería escribirse en el userdata, de forma que se leerán dos ficheros locales: el del userdata y el que está junto al py (vendrá con el plugin). El mayor de los 2 es la versión actual, y si no existe fichero se asume versión 0
-    if channel_name<>"channelselector":
-        local_channel_path = os.path.join( config.get_runtime_path() , 'channels' , channel_name+".py" )
-        local_version_path = os.path.join( config.get_runtime_path() , 'channels' , channel_name+".xml" )
-        local_compiled_path = os.path.join( config.get_runtime_path() , 'channels' , channel_name+".pyo" )
-    else:
-        local_channel_path = os.path.join( config.get_runtime_path() , channel_name+".py" )
-        local_version_path = os.path.join( config.get_runtime_path() , channel_name+".xml" )
-        local_compiled_path = os.path.join( config.get_runtime_path() , channel_name+".pyo" )
-
-    logger.info("pelisalacarta.core.updater local_channel_path="+local_channel_path)
-    logger.info("pelisalacarta.core.updater local_version_path="+local_version_path)
-    logger.info("pelisalacarta.core.updater local_compiled_path="+local_compiled_path)
-    
-    return local_channel_path , local_version_path , local_compiled_path
-
-def updatechannel(channel_name):
-    logger.info("pelisalacarta.core.updater updatechannel('"+channel_name+"')")
-    
-    # Canal remoto
-    remote_channel_url , remote_version_url = get_channel_remote_url(channel_name)
-    
-    # Canal local
-    local_channel_path , local_version_path , local_compiled_path = get_channel_local_path(channel_name)
-    
-    #if not os.path.exists(local_channel_path):
-    #    return False;
-
-    # Version remota
+def download_file(url):
+  for x in range(10):
     try:
-        data = scrapertools.cachePage( remote_version_url )
-        logger.info("pelisalacarta.core.updater remote_data="+data)
+      data = scrapertools.downloadpage(url)
+      assert data
+      return data
+    except:
+      logger.info("No se ha podido descargar: " + url + " (intento " + str(x) + " de 10)" )
+    else:
+      break
+  else:
+      logger.info("Ha sido imposible descargar: " + url)
+      logger.info("Abortando")
+      raise Exception("File not downloaded")
+      
+
+def read_updates():
+  if os.path.exists(os.path.join(config.get_data_path(),"updates.json")):
+    try:
+      updates=json.loads(open(os.path.join(config.get_data_path(),"updates.json"),"r").read())
+    except:
+      updates = {}
+  else:
+    updates = {}
+  return updates
+
+def add_update(update, change, type):
+  updates = read_updates()
+  if not update["sha"] in updates:
+    updates[update["sha"]] = {}
+    updates[update["sha"]]["name"] = update["name"]
+    updates[update["sha"]]["sha"] = update["sha"]
+    updates[update["sha"]]["change"] = change
+    updates[update["sha"]]["type"] = type
+    open(os.path.join(config.get_data_path(),"updates.json"),"w").write(json.dumps(updates, indent=4, sort_keys=True))
+    
+    
+def remove_update(sha):
+  updates = read_updates()
+  if sha in updates:
+   del updates[sha]
+   open(os.path.join(config.get_data_path(),"updates.json"),"w").write(json.dumps(updates, indent=4, sort_keys=True))
+
+def get_file_url(update):
+  urls = []
+  if "data" in update:
+    base_url =  update["data"]["update_url"]
+    base_url=""
+  else:
+    base_url =""
+  if not base_url: base_url = DownloadUrl + update["type"] + "/"
+  
+  if "data" in update:
+    xmlfile = update["data"]["id"]+".xml"
+    pyfile = update["data"]["id"]+".py"
+  else:
+    xmlfile = update["name"]
+    pyfile = update["name"].replace(".xml",".py")
+
+  xml = {"url": base_url + xmlfile, "path": os.path.join(config.get_runtime_path(),update["type"], xmlfile)}
+  py = {"url": base_url + pyfile, "path": os.path.join(config.get_runtime_path(),update["type"], pyfile)}
+  
+  return xml, py
+
+  
+def get_update(sha):
+  updates = read_updates()
+  if not "data" in updates[sha]:
+    xml, py = get_file_url(updates[sha])
+    xmldata = scrapertools.downloadpage(xml["url"])
+    xmldata = unicode(xmldata,"utf8","ignore").encode("utf8")
+    dct_data = xmltools.xml2dict(xmldata=xmldata)
+    updates[sha]["data"] = dct_data[dct_data.keys()[0]]
+    open(os.path.join(config.get_data_path(),"updates.json"),"w").write(json.dumps(updates, indent=4, sort_keys=True))
+  return updates[sha]
+  
+def get_updates_list():
+  updates = read_updates()
+  channel_list = get_file_list("channels")
+  server_list = get_file_list("servers")
+  shas = updates.keys()
+  for sha in shas:
+    if updates[sha]["type"]=="channels":
+      if updates[sha]["change"]=="added" and updates[sha]["name"] in channel_list:
+        updates[sha]["change"]="modified"
+      if updates[sha]["change"]=="modified" and not updates[sha]["name"] in channel_list:
+        updates[sha]["change"]="added"
+      if updates[sha]["change"]=="modified" and channel_list[updates[sha]["name"]]["sha"] == sha:
+        del updates[sha]
+      continue
+    if updates[sha]["type"]=="servers":
+      if updates[sha]["change"]=="added" and updates[sha]["name"] in server_list:
+        updates[sha]["change"]="modified"
+      if updates[sha]["change"]=="modified" and not updates[sha]["name"] in server_list:
+        updates[sha]["change"]="added"
+      if updates[sha]["change"]=="modified" and server_list[updates[sha]["name"]]["sha"] == sha:
+        del updates[sha]
+
+  open(os.path.join(config.get_data_path(),"updates.json"),"w").write(json.dumps(updates, indent=4, sort_keys=True))
+  return updates
+ 
+ 
+def checkforupdates():
+  from threading import Thread
+  Thread(target=threaded_checkforupdates).start()
+
+def threaded_checkforupdates():
+  logger.info("checkforupdates")
+  import time
+  #Actualizaciones del plugin
+  if config.get_setting("updateplugin") == "true":
+    logger.info("Comprobando actualizaciones de pelisalcarta")
+    
+    LOCAL_VERSION_FILE = open(os.path.join(config.get_runtime_path(), "version.xml" )).read()
+    #REMOTE_VERSION_FILE = scrapertools.downloadpage(DownloadUrl % "bin/version.xml")
+    REMOTE_VERSION_FILE = scrapertools.downloadpage("http://descargas.tvalacarta.info/pelisalacarta-version.xml")
+    
+    try:
+      versiondescargada = scrapertools.get_match(REMOTE_VERSION_FILE,"<tag>([^<]+)</tag").strip()
+    except:
+      versiondescargada = "0.0.0"
+      
+    versionlocal = scrapertools.get_match(LOCAL_VERSION_FILE,"<tag>([^<]+)</tag")  
         
-        if "<tag>" in data: 
-            patronvideos  = '<tag>([^<]+)</tag>'
-        elif "<version>" in data: 
-            patronvideos  = '<version>([^<]+)</version>'
+    logger.info("Versión local: " + versionlocal)
+    logger.info("Versión remota: " + versiondescargada)
+    
+    from distutils.version import StrictVersion
+    if StrictVersion(versiondescargada) > StrictVersion(versionlocal):
+      if platformtools.dialog_yesno("pelisalacarta","¡Hay una nueva versión lista para descargar!\nVersión actual: "+versionlocal+" - Nueva versión: "+versiondescargada+"\nQuieres instalarla ahora?"):
+        update(versiondescargada)
+        return
+      else:
+       logger.info("Opción seleccionada: No Descargar")
+  #Actualizacion de canales      
+  if config.get_setting("updatechannels") =="1" or config.get_setting("updatechannels") =="2":
+    check_files()
 
-        matches = re.compile(patronvideos,re.DOTALL).findall(data)
-        remote_version = int(matches[0])
-    except:
-        remote_version = 0
+def check_files(channelmode=False):
+  logger.info("pelisalacarta.core.updates check_files")
+  progress = platformtools.dialog_progress_bg("Pelisalacarta","Comprobando actualizaciones...")
+  progress.update(50, "Pelisalacarta","Descargando lista de canales...")
+  
+  api_data = scrapertools.downloadpage(GitApi %("channels"), headers=headers)
+  RemoteJSONData = json.loads(api_data)
+  LocalJSONData = get_file_list("channels")
+  
 
-    logger.info("pelisalacarta.core.updater remote_version=%d" % remote_version)
+  for file in RemoteJSONData:
+    if file["name"].endswith(".xml"):
+      if not file["name"] in LocalJSONData:
+        add_update(file, "added", "channels")
+      elif file["sha"] <> LocalJSONData[file["name"]]["sha"]:
+        add_update(file, "modified", "channels")
+        
+  progress.update(100, "Pelisalacarta", "Descargando lista de servidores...")
+  
+  api_data = scrapertools.downloadpage(GitApi %("servers"), headers=headers)
+  RemoteJSONData = json.loads(api_data)
+  LocalJSONData = get_file_list("servers")
+  
+  for file in RemoteJSONData:
+    if file["name"].endswith(".xml"):
+      if not file["name"] in LocalJSONData:
+        add_update(file, "added", "servers")
+      elif file["sha"] <> LocalJSONData[file["name"]]["sha"]:
+        add_update(file, "modified", "servers")
 
-    # Version local
-    if os.path.exists( local_version_path ):
-        infile = open( local_version_path )
-        data = infile.read()
-        infile.close();
-        logger.info("pelisalacarta.core.updater local_data="+data)
+  if channelmode: 
+    progress.close()
+    return
+  
+  #Si todo esta al dia:
+  updates = get_updates_list()
+  if len(updates) == 0:
+    progress.update(100, "Pelisalacarta","Todos los canales y servidores estan actualizados")
+    time.sleep(1)
+    progress.close()
+        
+  #Si hay actualizaciones
+  else:
+    progress.update(100, "Pelisalacarta", "Hay actualizaciones disponibles")
+    time.sleep(1)
+    progress.close()
+      
+    if config.get_setting("updatechannels") =="1": #Automatico
+      download_all_updates()
+         
+    elif config.get_setting("updatechannels") =="2": #Preguntar
+      if platformtools.dialog_yesno("pelisalacarta","¡Hay "+str(len(updates)) + " actualizaciones disponibles\nQuieres instalarlas ahora?"):
+        download_all_updates()
 
-        if "<tag>" in data:
-            patronvideos  = '<tag>([^<]+)</tag>'
-        elif "<version>" in data:
-            patronvideos  = '<version>([^<]+)</version>' 
+def get_file_list(path):
+  logger.info("pelisalacarta.core.updates get_file_list")
+  path = os.path.join(config.get_runtime_path(),path)
+  logger.info("pelisalacarta.core.updates get_file_list path=" + path)
+  import hashlib
+  list={}
+  for file in os.listdir(path):
+    if file.endswith(".xml"):
+        data = open(os.path.join(path,file), 'rb').read()
+        dct_data = xmltools.xml2dict(xmldata=data)
+        list[os.path.basename(file)] = {}
+        list[os.path.basename(file)]["sha"] = hashlib.sha1("blob " + str(len(data)) + "\0" + data).hexdigest()
+        list[os.path.basename(file)]["changes"] = dct_data[dct_data.keys()[0]]["changes"]
+        list[os.path.basename(file)]["date"] = dct_data[dct_data.keys()[0]]["date"]
+        list[os.path.basename(file)]["version"] = dct_data[dct_data.keys()[0]]["version"]
+        list[os.path.basename(file)]["name"] = dct_data[dct_data.keys()[0]]["name"]
+        list[os.path.basename(file)]["id"] = dct_data[dct_data.keys()[0]]["id"]
+        list[os.path.basename(file)]["update_url"] = dct_data[dct_data.keys()[0]]["update_url"]
+        
+  return list
 
-        matches = re.compile(patronvideos,re.DOTALL).findall(data)
-        local_version = int(matches[0])
+  
+def GetDownloadPath(version, platform=""):
+  zipfile = config.PLUGIN_NAME + "-%s-%s.zip"
+  if not platform:
+    if config.PLATFORM_NAME=="xbmc":
+        platform = "xbmc-plugin"
     else:
-        local_version = 0
+        platform = config.PLATFORM_NAME
+  return zipfile % (platform, version)
+  
+  
+
+def update(version):
+    logger.info("Actualizando plugin...")   
     
-    logger.info("pelisalacarta.core.updater local_version=%d" % local_version)
+    LOCAL_FILE = os.path.join( config.get_data_path(),"pelisalacarta.zip" )
+
+    REMOTE_FILE = "http://descargas.tvalacarta.info/" + GetDownloadPath(version)
+    DESTINATION_FOLDER = os.path.join(config.get_runtime_path(),"..")
+
+    logger.info("Archivo Remoto: " + REMOTE_FILE)
+    logger.info("Archivo Local: " + LOCAL_FILE)
     
-    # Comprueba si ha cambiado
-    updated = remote_version > local_version
-
-    if updated:
-        logger.info("pelisalacarta.core.updater updated")
-        download_channel(channel_name)
-
-    return updated
-
-def download_channel(channel_name):
-    logger.info("pelisalacarta.core.updater download_channel('"+channel_name+"')")
-    # Canal remoto
-    remote_channel_url , remote_version_url = get_channel_remote_url(channel_name)
+    from core import downloadtools
+    if os.path.isfile(LOCAL_FILE):
+      os.remove(LOCAL_FILE)
+      
+    ret = downloadtools.downloadfile(REMOTE_FILE, LOCAL_FILE)
     
-    # Canal local
-    local_channel_path , local_version_path , local_compiled_path = get_channel_local_path(channel_name)
+    if ret is None:
+      logger.info("Descomprimiendo fichero...")
+      import ziptools
+      unzipper = ziptools.ziptools()
+      logger.info("Destino: " + DESTINATION_FOLDER)
 
-    # Descarga el canal
-    updated_channel_data = scrapertools.cachePage( remote_channel_url )
-    try:
-        outfile = open(local_channel_path,"w")
-        outfile.write(updated_channel_data)
-        outfile.flush()
-        outfile.close()
-        logger.info("pelisalacarta.core.updater Grabado a " + local_channel_path)
-    except:
-        logger.info("pelisalacarta.core.updater Error al grabar " + local_channel_path)
-        import sys
-        for line in sys.exc_info():
-            logger.error( "%s" % line )
 
-    # Descarga la version (puede no estar)
-    try:
-        updated_version_data = scrapertools.cachePage( remote_version_url )
-        outfile = open(local_version_path,"w")
-        outfile.write(updated_version_data)
-        outfile.flush()
-        outfile.close()
-        logger.info("pelisalacarta.core.updater Grabado a " + local_version_path)
-    except:
-        import sys
-        for line in sys.exc_info():
-            logger.error( "%s" % line )
-
-    if os.path.exists(local_compiled_path):
-        os.remove(local_compiled_path)
+      import shutil
+      for file in os.listdir(os.path.join(config.get_runtime_path())):
+        if not file in [".",".."]:
+          if os.path.isdir(os.path.join(config.get_runtime_path(), file)):
+            shutil.rmtree(os.path.join(config.get_runtime_path(), file))
+          if os.path.isfile(os.path.join(config.get_runtime_path(), file)):
+            os.remove(os.path.join(config.get_runtime_path(), file))
+     
+      unzipper.extract(LOCAL_FILE,DESTINATION_FOLDER)
+      os.remove(LOCAL_FILE)
+      platformtools.dialog_ok("Actualizacion", "Pelisalacarta se ha actualizado correctamente")
+    elif ret == -1:
+      platformtools.dialog_ok("Actualizacion", "Descarga Cancelada")
+    else:
+      platformtools.dialog_ok("Actualizacion", "Se ha producido un error al descargar el archivo")

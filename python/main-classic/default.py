@@ -23,9 +23,13 @@ librerias = xbmc.translatePath( os.path.join( config.get_runtime_path(), 'lib' )
 sys.path.append (librerias)
 
 from platformcode import launcher
-
-if sys.argv[1] == "1":
+if sys.argv[2] == "":
     # Esto solo se ejecuta la primera vez que entramos en el plugin
     launcher.start()
-
-launcher.run()
+    import xbmcplugin
+    import xbmc
+    xbmcplugin.endOfDirectory(handle=int(sys.argv[1]), succeeded=False)
+    xbmc.executebuiltin("Container.Update("+sys.argv[0] + "?)")
+    
+else:
+  launcher.run()

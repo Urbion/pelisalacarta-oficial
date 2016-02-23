@@ -26,6 +26,7 @@ def start():
     
     '''
     logger.info("pelisalacarta.platformcode.launcher start")
+    updater.checkforupdates()
     
     # Test if all the required directories are created
     config.verify_directories_created()
@@ -43,19 +44,6 @@ def run():
     try:
         # Default action: open channel and launch mainlist function
         if ( action=="selectchannel" ):
-
-            if config.get_setting("updatechannels")=="true":
-                try:
-                    from core import updater
-                    actualizado = updater.updatechannel("channelselector")
-
-                    if actualizado:
-                        import xbmcgui
-                        advertencia = xbmcgui.Dialog()
-                        advertencia.ok("tvalacarta",config.get_localized_string(30064))
-                except:
-                    pass
-
             import channelselector as plugin
             plugin.mainlist(params, url, category)
 
@@ -63,7 +51,7 @@ def run():
         elif ( action=="update" ):
             try:
                 from core import updater
-                updater.update(params)
+                updater.update(extra)
             except ImportError:
                 logger.info("pelisalacarta.platformcode.launcher Actualizacion automática desactivada")
 
@@ -110,18 +98,6 @@ def run():
 
                 if not can_open_channel:
                     return
-
-            if action=="mainlist" and config.get_setting("updatechannels")=="true":
-                try:
-                    from core import updater
-                    actualizado = updater.updatechannel(channel_name)
-
-                    if actualizado:
-                        import xbmcgui
-                        advertencia = xbmcgui.Dialog()
-                        advertencia.ok("plugin",channel_name,config.get_localized_string(30063))
-                except:
-                    pass
 
             # La acción puede estar en el core, o ser un canal regular. El buscador es un canal especial que está en pelisalacarta
             regular_channel_path = os.path.join( config.get_runtime_path() , 'channels' , channel_name+".py" )
@@ -371,13 +347,14 @@ def run():
                         subtitletools.saveSubtitleName(item)
 
                     # Activa el modo biblioteca para todos los canales genéricos, para que se vea el argumento
-                    import xbmcplugin
-                    import sys
-                    handle = sys.argv[1]
-                    xbmcplugin.setContent(int( handle ),"movies")
-                    
-                    # Añade los items a la lista de XBMC
-                    xbmctools.renderItems(itemlist, params, url, category)
+                    if type(itemlist) == list:
+                      import xbmcplugin
+                      import sys
+                      handle = sys.argv[1]
+                      xbmcplugin.setContent(int( handle ),"movies")
+                      
+                      # Añade los items a la lista de XBMC
+                      xbmctools.renderItems(itemlist, params, url, category)
 
     except urllib2.URLError,e:
         import traceback,sys
