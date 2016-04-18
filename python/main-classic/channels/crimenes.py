@@ -9,6 +9,7 @@ from core import logger
 from core import scrapertools
 from core import servertools
 from core.item import Item
+from core import servertools
 
 __channel__ = "crimenes"
 __category__ = "D"
@@ -30,9 +31,9 @@ def listav(item):
         
     data = scrapertools.cache_page(item.url)
         
-    patronbloque='<li><div class="yt-lockup.*?<img src="[^"]+" alt="" data-thumb="([^"]+)".*?'
+    patronbloque='<li><div class="yt-lockup.*?<img.*?src="([^"]+)".*?'
     patronbloque+='<h3 class="yt-lockup-title "><a href="([^"]+)".*?title="([^"]+)".*?'	
-    patronbloque+='</a><span class=.*?">(.*?)</span></h3>'	
+    patronbloque+='</a><span class=.*?">(.*?)</span></h3>'		
     matchesbloque = re.compile(patronbloque,re.DOTALL).findall(data)    
     scrapertools.printMatches(matchesbloque)
     
@@ -72,7 +73,7 @@ def busqueda(item):
         
         
     
-        patronbloque='<li><div class="yt-lockup.*?<img src="[^"]+" alt="" data-thumb="([^"]+)".*?'
+        patronbloque='<li><div class="yt-lockup.*?<img.*?src="([^"]+)".*?'
         patronbloque+='<h3 class="yt-lockup-title "><a href="([^"]+)".*?title="([^"]+)".*?'	
         patronbloque+='</a><span class=.*?">(.*?)</span></h3>'	
         matchesbloque = re.compile(patronbloque,re.DOTALL).findall(data)    
