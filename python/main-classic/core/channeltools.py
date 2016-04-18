@@ -13,7 +13,6 @@ import config
 import jsontools
 import logger
 import scrapertools
-import jsontools
 
 
 def is_adult(channel_name):
