@@ -46,6 +46,7 @@ def downloadpage(url, post=None, headers=None, timeout=None, follow_redirects=Tr
           content_type = downloadpege("http://www.example.com").headers.get("content-type")
           etc...
     """
+    logger.info("pelisalacarta.core.httptools  downloadpage")
     # Diccionario donde almacenaremos los datos de respuesta
     response = {}
 
@@ -75,9 +76,8 @@ def downloadpage(url, post=None, headers=None, timeout=None, follow_redirects=Tr
     ficherocookies = os.path.join(cookies_path, urlparse.urlparse(url).hostname + ".dat")
 
     # Guardamos un resumen de la petición en el log
-    logger.info("------------------------------------------")
-    logger.info("pelisalacarta.core.httptools  downloadpage")
-    logger.info("------------------------------------------")
+    logger.info("Resumen de la petición:")
+    logger.info("-"*50)
     logger.info("Timeout: %s" % timeout)
     logger.info("URL: " + url)
     logger.info("Dominio: " + urlparse.urlparse(url).hostname)
@@ -87,7 +87,8 @@ def downloadpage(url, post=None, headers=None, timeout=None, follow_redirects=Tr
     logger.info("Headers:")
     for header in request_headers:
         logger.info("- " + header + ":" + request_headers[header])
-
+    
+    logger.info("-"*50)
     # Handlers usados para la petición
     # HTTPHandler con debuglevel False
     handlers = [urllib2.HTTPHandler(debuglevel=False)]
@@ -115,7 +116,7 @@ def downloadpage(url, post=None, headers=None, timeout=None, follow_redirects=Tr
     inicio = time.time()
 
     # Iniciamos la petición
-    logger.info("Realizando Peticion")
+    logger.info("Realizando Peticion...")
     req = urllib2.Request(url, post, request_headers)
     try:
         handle = opener.open(req, timeout=timeout)
@@ -143,26 +144,30 @@ def downloadpage(url, post=None, headers=None, timeout=None, follow_redirects=Tr
         response["headers"] = handle.headers.dict
         response["data"] = handle.read()
         response["time"] = time.time() - inicio
-
+        
+    # Guardamos las cookies
+    if cookies:
+        logger.info("Guardando cookies...")
+        cj.save(ficherocookies, ignore_discard=True)
+        
     # Si el contenido esta comprimido, lo descomprimimos
     if response["headers"].get('content-encoding') == 'gzip':
-        logger.info("Descomprimiendo...")
+        logger.info("Descomprimiendo datos gzip...")
         response["data"] = gzip.GzipFile(fileobj=StringIO(response["data"])).read()
         logger.info("Descomprimido")
 
+
     # Guardamos en el log un resumen con la respuesta
+    logger.info("Resultado de la petición:")
+    logger.info("-"*50)
     logger.info("Terminado en %.2f segundos" % (response["time"]))
     logger.info("Response error: %s" % (response["error"]))
     logger.info("Response code: %s" % (response["code"]))
     logger.info("Response headers:")
     for header in response["headers"]:
         logger.info("- " + header + ":" + response["headers"][header])
-
-    # Guardamos las cookies
-    if cookies:
-        logger.info("Guardando cookies...")
-        cj.save(ficherocookies, ignore_discard=True)
-
+    logger.info("-"*50)
+    
     return type('Enum', (), response)
 
 
