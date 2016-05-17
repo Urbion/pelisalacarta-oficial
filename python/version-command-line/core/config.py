@@ -104,7 +104,9 @@ def get_data_path():
     return data_path
 
 def get_runtime_path():
-    return os.getcwd()
+    # Como config.py está en el directorio core, el directorio padre es el runtime_path
+    # (al menos en la versión command_line que puede ser llamada desde cualquier sitio)
+    return os.path.join( os.path.dirname(__file__) , ".." )
 
 def get_cookie_data():
     import os

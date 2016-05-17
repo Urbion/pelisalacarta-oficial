@@ -31,7 +31,10 @@ class html(Controller):
       ID = "%032x" %(random.getrandbits(128))
       self.handler.sendMessage('{"action": "connect", "data":{"version": "pelisalacarta '+config.get_plugin_version()+'", "date":"'+config.get_plugin_date()+'"}, "id": "'+ ID +'"}')
       launcher.start()
-    
+      
+  def __del__(self):
+      pass
+      
   def extract_item(self,path):
       if path:
         item = Item()
@@ -357,18 +360,95 @@ class platform(Platformtools):
         plot = item.contentPlot
       else:
         plot = item.plot  
-      JsonData = {}
-      JsonData["action"]="Play" 
-      JsonData["data"]={}
-      JsonData["data"]["title"]= title
-      JsonData["data"]["plot"]= plot
-      JsonData["data"]["video_url"] =  item.video_url
-      JsonData["data"]["url"] =  item.url
-      JsonData["data"]["host"] =  self.controller.host
-      ID = self.send_message(JsonData)
-      while self.get_data(ID) == None:
-        continue
-   
+      
+
+      if item.server=="torrent":
+        self.play_torrent(item)
+      else:
+        JsonData = {}
+        JsonData["action"]="Play" 
+        JsonData["data"]={}
+        JsonData["data"]["title"]= title
+        JsonData["data"]["plot"]= plot
+        JsonData["data"]["video_url"] =  item.video_url
+        JsonData["data"]["url"] =  item.url
+        JsonData["data"]["host"] =  self.controller.host
+        ID = self.send_message(JsonData)
+        while self.get_data(ID) == None:
+          continue
+          
+  def play_torrent(self,item):
+      import time
+      import os
+      played = False
+      
+      #Importamos el cliente
+      from btserver import Client
+      
+      #Iniciamos el cliente:
+      c = Client(url=item.url, is_playing_fnc=self.is_playing ,wait_time=None, timeout=5, temp_path =os.path.join(config.get_data_path(),"torrent") )
+
+      #Mostramos el progreso
+      progreso = self.dialog_progress( "Pelisalacarta - Torrent" , "Iniciando...")
+      
+      
+      #Mientras el progreso no sea cancelado ni el cliente cerrado
+      while not progreso.iscanceled() and not c.closed:
+        try:
+          #Obtenemos el estado del torrent
+          s = c.status
+          
+          #Montamos las tres lineas con la info del torrent
+          txt = '%.2f%% de %.1fMB %s | %.1f kB/s' % \
+          (s.progress_file, s.file_size, s.str_state, s._download_rate)
+          txt2 =  'S: %d(%d) P: %d(%d) | DHT:%s (%d) | Trakers: %d' % \
+          (s.num_seeds, s.num_complete, s.num_peers, s.num_incomplete, s.dht_state, s.dht_nodes, s.trackers)
+          txt3 = 'Origen Peers TRK: %d DHT: %d PEX: %d LSD %d ' % \
+          (s.trk_peers,s.dht_peers, s.pex_peers, s.lsd_peers)
+          
+          progreso.update(s.buffer,txt, txt2, txt3)
+          
+          
+          time.sleep(1)
+          
+          #Si el buffer se ha llenado y la reproduccion no ha sido iniciada, se inicia
+          if s.buffer == 100 and not played:
+            
+            #Cerramos el progreso
+            progreso.close()
+            
+            #Obtenemos el playlist del torrent
+            item.video_url = c.get_play_list()
+            item.server = "directo"
+            
+            self.play_video(item)
+            
+            #Marcamos como reproducido para que no se vuelva a iniciar
+            played = True
+            
+            #Y esperamos a que el reproductor se cierre
+            while self.is_playing():
+              time.sleep(1)
+            
+            #Cuando este cerrado,  Volvemos a mostrar el dialogo
+            progreso = self.dialog_progress( "Pelisalacarta - Torrent" , "Iniciando...")
+
+        except:
+          import traceback
+          logger.info(traceback.format_exc())
+          break
+          
+      progreso.update(100,"Terminando y eliminando datos"," "," ")
+      
+      #Detenemos el cliente
+      if not c.closed:
+        c.stop()
+       
+      #Y cerramos el progreso
+      progreso.close()
+        
+      return 
+      
   def open_settings(self,items):
     from core import config
     JsonData = {}

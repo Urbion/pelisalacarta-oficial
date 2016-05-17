@@ -12,26 +12,6 @@
     "default": "true"
   },
   {
-    "id": "fileniumpremium",
-    "label": "Cuenta premium Filenium",
-    "type": "bool",
-    "default": "false"
-  },
-  {
-    "id": "fileniumuser",
-    "label": "Usuario",
-    "type": "text",
-    "default": ""
-  },
-  {
-    "id": "fileniumpassword",
-    "label": "Password",
-    "type": "text",
-    "option": "hidden",
-    "default": "",
-    "secure": "true"
-  },
-  {
     "id": "realdebridpremium",
     "label": "Cuenta premium Real Debrid",
     "type": "bool",

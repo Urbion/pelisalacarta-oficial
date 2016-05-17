@@ -18,7 +18,7 @@ import channelselector
 try:
 	from core import servertools
 except:
-	from servers import servertools
+	from core import servertools
 
 
 def start():
