@@ -104,7 +104,7 @@ def listdir(path):
     Lista un directorio
     '''
     if path.lower().startswith("smb://"):
-      files, directories = samba.delete_directory(os.path.basename(path), os.path.dirname(path))
+      files, directories = samba.get_files_and_directories(os.path.basename(path), os.path.dirname(path))
       return files + directories
     else:
       return os.listdir(path)
